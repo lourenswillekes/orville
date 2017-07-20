@@ -7,22 +7,37 @@
 // currThread which indicates the number of the thread currently
 // running.
 
-void thread1(void)
+void threadUART(void)
+{
+  unsigned count;
+  
+  while(1)
+    for (count = 0; count < 10000; count++) {
+      iprintf("Thread %u: UART\r\n", currThread);
+	}
+  }
+  
+}
+
+void threadOLED(void)
+{
+  unsigned count;
+  
+  while(1)
+    for (count = 0; count < 10000; count++) {
+      iprintf("Thread %u: OLED\r\n", currThread);
+	}
+  }
+  
+}
+
+void threadLED(void)
 {
   unsigned count;
 
   for (count = 0; count < 10; count++) {
-    iprintf("In thread %u -- pass %d\r\n", currThread, count);
+    iprintf("Thread %u: LED -- yield %d\r\n", currThread, count);
     yield();
   }
-}
-
-void thread2(void)
-{
-  unsigned count;
-
-  for (count=0; count < 5; count++) {
-    iprintf("In thread %u -- pass %d\r\n", currThread, count);
-    yield();
-  }
+  
 }
