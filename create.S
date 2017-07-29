@@ -26,7 +26,7 @@ createThread:
 
   /* Save registers in the jump buffer. Their values are
      not important when the thread is first created. This line is the same as
-     the first two lines of setjmp(), except we don't save SP and LR since we 
+     the first two lines of setjmp(), except we dont save SP and LR since we 
      want to set these to our own values. Really, the only point of this 
      instruction is to advance R0 to the right location in the jump buffer for 
      pointing to SP (without having to do any math :-) */

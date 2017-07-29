@@ -1,17 +1,32 @@
-#include <stdio.h>
-#include <setjmp.h>
-#include <stdlib.h>
-#include <string.h>
-#include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
 #include "driverlib/gpio.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/uart.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/lm3s6965.h"
 #include "rit128x96x4.h"
 #include "scheduler.h"
-#include "inc/lm3s6965.h"
+#include <setjmp.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define STACK_SIZE 4096   // Amount of stack space for each thread
+
+#define STACK_SIZE 4096
+#define NUM_THREADS (sizeof(threadTable)/sizeof(threadTable[0]))
+
+
+
+unsigned uartlock;
+extern unsigned lock_acquire(unsigned *lock);
+extern void lock_release(unsigned *lock);
+void lock_init(unsigned *lock)
+{
+  lock_release(lock);
+}
+
+
+
 
 void scheduler(void);
 void SVCHandle(void);
@@ -20,6 +35,8 @@ void handleSVC(int code);
 void threadStarter(void);
 void regStateSave(void);
 void regStateRestore(void);
+
+
 
 typedef struct {
   int active;       // non-zero means thread is allowed to run
@@ -39,7 +56,7 @@ extern void thread1(void);
 extern void thread2(void);
 
 // The size of used stack + 64 bytes for each thread
-// This aray replaces STACK_SIZE macro
+// This array replaces STACK_SIZE macro
 static int stackSize[] = {
   STACK_SIZE,
   STACK_SIZE,
@@ -48,15 +65,13 @@ static int stackSize[] = {
 };
 
 static thread_t threadTable[] = {
-  thread1,
-  thread1,
-  thread2,
-  thread2 //all that is needed to add another thread is to add a function to the threadTable
+  threadUART,
+  threadUART,
+  threadOLED,
+  threadLED,
 };
-#define NUM_THREADS (sizeof(threadTable)/sizeof(threadTable[0]))
 
-// These static global variables are used in scheduler(), in
-// the yield() function, and in threadStarter()
+// These static global variables are used in scheduler(), in yield(), and in threadStarter()
 static threadStruct_t threads[NUM_THREADS]; // the thread table
 unsigned currThread;    // The currently active thread
 
@@ -66,7 +81,7 @@ unsigned currThread;    // The currently active thread
 // initial jump-buffer (as would setjmp()) but with our own values
 // for the stack (passed to createThread()) and LR (always set to
 // threadStarter() for each thread).
-extern void createThread(jmp_buf buf, char *stack);
+extern void createThread(char *savedRegs, char *stack);
 
 void main(void)
 {
