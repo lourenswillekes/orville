@@ -1,43 +1,62 @@
-#include <stdio.h>
-#include "scheduler.h"
 
-// These are the user-space threads. Note that they are completely oblivious
-// to the technical concerns of the scheduler. The only interface to the
-// scheduler is the single function yield() and the global variable
-// currThread which indicates the number of the thread currently
-// running.
+#include "rit128x96x4.h"
+#include "scheduler.h"
+#include <stdio.h>
+
+
+/*void uart_lock(unsigned *count)
+{
+	(*count)++;
+}
+
+void uart_unlock(unsigned *lock, unsigned *count)
+{
+	(*count)--;
+	if (0 == (*count))
+	{
+		lock_release(lock);
+	}
+}*/
+
 
 void threadUART(void)
 {
-  unsigned count;
-  
-  while(1)
-    for (count = 0; count < 10000; count++) {
-      iprintf("Thread %u: UART\r\n", currThread);
+	while (1)
+	{  
+		if (lock_acquire(&threadlock))
+		{
+			iprintf("THIS IS T");
+			yield();
+			iprintf("HREAD NU");
+			yield();
+			iprintf("MBER %d\r\n", currThread);
+			
+			lock_release(&threadlock);
+		}
+	yield();
 	}
-  }
-  
 }
 
 void threadOLED(void)
 {
-  unsigned count;
-  
-  while(1)
-    for (count = 0; count < 10000; count++) {
-      iprintf("Thread %u: OLED\r\n", currThread);
+	int i;
+	while (1)
+	{
+		for (i = 0; i < 250000; i++);
+		RIT128x96x4StringDraw("SWITCHING",       12, 16, 15);
+        yield();
+		for (i = 0; i < 250000; i++);
+		RIT128x96x4StringDraw("THINGS   ",       12, 16, 15);
+        yield();
 	}
-  }
-  
+
 }
 
 void threadLED(void)
 {
-  unsigned count;
-
-  for (count = 0; count < 10; count++) {
-    iprintf("Thread %u: LED -- yield %d\r\n", currThread, count);
-    yield();
-  }
-  
+	while (1)
+	{
+		// nepis
+	}
+	
 }
