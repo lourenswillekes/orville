@@ -10,11 +10,9 @@ void threadUART(void)
 	{  
 		if (lock_acquire(&uartlock))
 		{
-			iprintf("THIS IS T");
-			yield();
-			iprintf("HREAD NU");
-			yield();
-			iprintf("MBER %d\r\n", currThread);
+			iprintf("HELLO FRO");
+			iprintf("M THREAD ");
+			iprintf("NUMBER %d\r\n", currThread);
 
 			lock_release(&uartlock);
 		}
@@ -22,26 +20,36 @@ void threadUART(void)
 	}
 }
 
+
 void threadOLED(void)
 {
 	int i;
 	while (1)
 	{
-		for (i = 0; i < 250000; i++);
-		RIT128x96x4StringDraw("SWITCHING",       12, 16, 15);
-		yield();
-		for (i = 0; i < 250000; i++);
-		RIT128x96x4StringDraw("THINGS   ",       12, 16, 15);
-		yield();
+		for (i = 0; i < 500000; i++);
+		RIT128x96x4StringDraw("  ", 20, 60, 15);
+		RIT128x96x4StringDraw("HI", 20, 20, 15);
+		for (i = 0; i < 500000; i++);
+		RIT128x96x4StringDraw("  ", 20, 20, 15);
+		RIT128x96x4StringDraw("HI", 80, 20, 15);
+		for (i = 0; i < 500000; i++);
+		RIT128x96x4StringDraw("  ", 80, 20, 15);
+		RIT128x96x4StringDraw("HI", 80, 60, 15);
+		for (i = 0; i < 500000; i++);
+		RIT128x96x4StringDraw("  ", 80, 60, 15);
+		RIT128x96x4StringDraw("HI", 20, 60, 15);
 	}
 
 }
 
+
 void threadLED(void)
 {
+	int i, state = 0;
 	while (1)
 	{
-		// nepis
+		state ^= 1;
+		for (i = 0; i < 500000; i++);
+		GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_0, state);
 	}
-
 }
