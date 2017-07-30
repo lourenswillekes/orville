@@ -23,7 +23,7 @@ void threadUART(void)
 {
 	while (1)
 	{  
-		if (lock_acquire(&threadlock))
+		if (lock_acquire(&uartlock))
 		{
 			iprintf("THIS IS T");
 			yield();
@@ -31,7 +31,7 @@ void threadUART(void)
 			yield();
 			iprintf("MBER %d\r\n", currThread);
 			
-			lock_release(&threadlock);
+			lock_release(&uartlock);
 		}
 	yield();
 	}
