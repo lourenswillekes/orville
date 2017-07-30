@@ -16,23 +16,20 @@
 #define STACK_SIZE 4096
 
 
-
 unsigned uartlock;
 extern unsigned lock_acquire(unsigned *lock);
 extern void lock_release(unsigned *lock);
+void scheduler(void);
+void threadStarter(void);
 void lock_init(unsigned *lock)
 {
   lock_release(lock);
 }
 
-
-void scheduler(void);
-void threadStarter(void);
-
 typedef struct {
   int active;       // non-zero means thread is allowed to run
   char *stack;      // pointer to TOP of stack (highest memory location)
-  unsigned savedRegs[10];
+  unsigned savedRegs[10]; // Array holding r4 - r11 and PSP
 } threadStruct_t;
 
 // thread_t is a pointer to function with no parameters and
@@ -43,20 +40,19 @@ extern void threadUART(void);
 extern void threadOLED(void);
 extern void threadLED(void);
 
-// The size of used stack + 64 bytes for each thread
-// This array replaces STACK_SIZE macro
+// This array replaces STACK_SIZE macro for variable stack sizes
 static int stackSize[] = {
   STACK_SIZE,
   STACK_SIZE,
-  //STACK_SIZE,
-  //STACK_SIZE
+  STACK_SIZE,
+  STACK_SIZE
 };
 
 static thread_t threadTable[] = {
   threadUART,
   threadUART,
-  //threadOLED,
-  //threadLED,
+  threadOLED,
+  threadLED,
 };
 
 #define NUM_THREADS (sizeof(threadTable)/sizeof(threadTable[0]))
@@ -68,10 +64,9 @@ unsigned firstTime = 1;
 
 
 
-// This function is implemented in assembly language. It sets up the
-// initial jump-buffer (as would setjmp()) but with our own values
-// for the stack (passed to createThread()) and LR (always set to
-// threadStarter() for each thread).
+// This function is implemented in assembly. It sets up the scheduler
+// with default values in the threads stack along with its saved Registers
+// buffer.
 extern void createThread(unsigned *savedRegs, char *stack);
 
 void main(void)
@@ -101,11 +96,11 @@ void main(void)
   // Init lock function
   lock_init(&uartlock);
 
-  // Set Systick to be a 1ms timer with interupt
+  // Set Systick to be a 1ms timer with interrupt
   NVIC_ST_CTRL_R = 0;
   NVIC_ST_RELOAD_R = 8000;
   NVIC_ST_CURRENT_R = 0;
-  //NVIC_ST_CTRL_R = 0x7;
+  NVIC_ST_CTRL_R = 0x7;
 
   // Create all the threads and allocate a stack for each one
   for (i=0; i < NUM_THREADS; i++) {
@@ -119,16 +114,16 @@ void main(void)
       exit(1);
     }
 
-    // After createThread() executes, we can execute a longjmp()
-    // to threads[i].state and the thread will begin execution
-    // at threadStarter() with its own stack.
+    // After createThread() executes, we can execute a restore stack
+    // and the thread will begin execution at threadStarter() with
+    // its own stack.
     createThread(threads[i].savedRegs, threads[i].stack);
   }
 
   // Enable interrupts
   IntMasterEnable();
 
-  // Start running coroutines
+  // Starts scheduler in privileged handler mode
   yield();
 
   // If scheduler() returns, all coroutines are inactive and we return
@@ -153,22 +148,20 @@ void scheduler(void){
     currThread = 0;
   }
 
-  iprintf(".");
+  //iprintf(".");
   NVIC_ST_CURRENT_R = 0;
 
   // Restore thread state
   asm volatile("ldm %0, {r4-r12}" : : "r" (threads[currThread].savedRegs));
   asm volatile("MSR PSP, r12");
 
-  // Fake return to 
+  // Fake return to unprivileged thread mode
   asm volatile ("movw lr, #0xfffd");
   asm volatile ("movt lr, #0xffff");
   asm volatile ("bx lr");
 }
 
-// This function is called from within user thread context. It executes
-// a jump back to the scheduler. When the scheduler returns here, it acts
-// like a standard function return back to the caller of yield().
+// This function causes and svc exception to execute scheduler in privileged handler mode
 void yield(void)
 {
   asm volatile ("svc #0");
@@ -176,14 +169,11 @@ void yield(void)
 
 // This is the starting point for all threads. It runs in user thread
 // context using the thread-specific stack. The address of this function
-// is saved by createThread() in the LR field of the jump buffer so that
-// the first time the scheduler() does a longjmp() to the thread, we
-// start here.
+// is saved by createThread() in the savedRegs buffer.
 void threadStarter(void)
 {
   // Call the entry point for this thread. The next line returns
   // only when the thread exits.
-  iprintf("in thread started\r\n");
   (*(threadTable[currThread]))();
 
   // Do thread-specific cleanup tasks. Currently, this just means marking
