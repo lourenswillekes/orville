@@ -4,37 +4,21 @@
 #include <stdio.h>
 
 
-/*void uart_lock(unsigned *count)
-{
-	(*count)++;
-}
-
-void uart_unlock(unsigned *lock, unsigned *count)
-{
-	(*count)--;
-	if (0 == (*count))
-	{
-		lock_release(lock);
-	}
-}*/
-
-
 void threadUART(void)
 {
 	while (1)
 	{  
-		iprintf("KILL ME!!!\r\n");
-		//if (lock_acquire(&uartlock))
-		//{
+		if (lock_acquire(&uartlock))
+		{
 			iprintf("THIS IS T");
 			yield();
 			iprintf("HREAD NU");
 			yield();
 			iprintf("MBER %d\r\n", currThread);
-			
+
 			lock_release(&uartlock);
-		//}
-	yield();
+		}
+		yield();
 	}
 }
 
@@ -45,10 +29,10 @@ void threadOLED(void)
 	{
 		for (i = 0; i < 250000; i++);
 		RIT128x96x4StringDraw("SWITCHING",       12, 16, 15);
-        yield();
+		yield();
 		for (i = 0; i < 250000; i++);
 		RIT128x96x4StringDraw("THINGS   ",       12, 16, 15);
-        yield();
+		yield();
 	}
 
 }
@@ -59,5 +43,5 @@ void threadLED(void)
 	{
 		// nepis
 	}
-	
+
 }

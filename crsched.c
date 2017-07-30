@@ -14,7 +14,6 @@
 
 
 #define STACK_SIZE 4096
-#define NUM_THREADS (sizeof(threadTable)/sizeof(threadTable[0]))
 
 
 
@@ -27,16 +26,8 @@ void lock_init(unsigned *lock)
 }
 
 
-
-
 void scheduler(void);
-void SVCHandle(void);
-int getPriv(void);
-void handleSVC(int code);
 void threadStarter(void);
-void regStateSave(unsigned *storeReg, unsigned *pspLocation);
-void regStateRestore(unsigned *storeReg, unsigned pspLocation);
-
 
 typedef struct {
   int active;       // non-zero means thread is allowed to run
@@ -56,21 +47,24 @@ extern void threadLED(void);
 // This array replaces STACK_SIZE macro
 static int stackSize[] = {
   STACK_SIZE,
-  //STACK_SIZE,
+  STACK_SIZE,
   //STACK_SIZE,
   //STACK_SIZE
 };
 
 static thread_t threadTable[] = {
   threadUART,
-  //threadUART,
+  threadUART,
   //threadOLED,
   //threadLED,
 };
 
+#define NUM_THREADS (sizeof(threadTable)/sizeof(threadTable[0]))
+
 // These static global variables are used in scheduler(), in yield(), and in threadStarter()
 static threadStruct_t threads[NUM_THREADS];
 unsigned currThread;
+unsigned firstTime = 1;
 
 
 
@@ -104,6 +98,9 @@ void main(void)
                       (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                        UART_CONFIG_PAR_NONE));
 
+  // Init lock function
+  lock_init(&uartlock);
+
   // Set Systick to be a 1ms timer with interupt
   NVIC_ST_CTRL_R = 0;
   NVIC_ST_RELOAD_R = 8000;
@@ -122,9 +119,6 @@ void main(void)
       exit(1);
     }
 
-    // sets a threads stack to all 0xff to see how much memory each stacks uses
-    memset(threads[i].stack - stackSize[i], 0xffffffff, stackSize[i]);
-
     // After createThread() executes, we can execute a longjmp()
     // to threads[i].state and the thread will begin execution
     // at threadStarter() with its own stack.
@@ -134,11 +128,8 @@ void main(void)
   // Enable interrupts
   IntMasterEnable();
 
-  iprintf("This is dumb\r\n");
-
   // Start running coroutines
-  asm volatile ("svc #0");
-  //scheduler();
+  yield();
 
   // If scheduler() returns, all coroutines are inactive and we return
   // from main() hence exit() should be called implicitly (according to
@@ -148,67 +139,31 @@ void main(void)
 }
 
 void scheduler(void){
-  //regStateSave(threads[currThread].savedRegs, &threads[currThread].savedRegs[8]);
-  //if (++currThread == NUM_THREADS) {
-  //  currThread = 0;
-  //}
-  //NVIC_ST_CURRENT_R = 0;
-  regStateRestore(threads[currThread].savedRegs, threads[currThread].savedRegs[8]);
+  // First time scheduler is called the correct value is put into psp for save state
+  if(firstTime){
+      asm volatile ("MSR PSP, %0" : : "r" (threads[currThread].savedRegs[8]));
+      firstTime = 0;
+  }
+
+  // Save thread state
+  asm volatile("MRS r12, PSP");
+  asm volatile("stm %0, {r4-r12}" : : "r" (threads[currThread].savedRegs));
+
+  if (++currThread == NUM_THREADS) {
+    currThread = 0;
+  }
+
+  iprintf(".");
+  NVIC_ST_CURRENT_R = 0;
+
+  // Restore thread state
+  asm volatile("ldm %0, {r4-r12}" : : "r" (threads[currThread].savedRegs));
+  asm volatile("MSR PSP, r12");
+
+  // Fake return to 
   asm volatile ("movw lr, #0xfffd");
   asm volatile ("movt lr, #0xffff");
   asm volatile ("bx lr");
-}
-
-void SVCHandle(void){
-  asm volatile ("ldr r0, [r13, #24]");
-  asm volatile ("sub r0, r0, #2");
-  asm volatile ("ldrh r0, [r0]");
-  asm volatile ("b handleSVC");
-}
-
-// returns the priv level
-int getPriv(void){
-  asm volatile ("mrs r0, CONTROL");
-  asm volatile ("AND R0, R0, #1");
-  asm volatile ("bx lr");
-}
-
-void handleSVC(int code)
-{
-  // NOTE: iprintf() is a bad idea inside an exception
-  // handler (exception handlers should be small and short).
-  // But this is the easiest way to show we got it right.
-  switch (code & 0xFF) {
-    case 0:
-      scheduler();
-    case 2:
-      asm volatile ("mrs r3, CONTROL");
-      asm volatile ("ORR R3, R3, #1");
-      asm volatile ("msr CONTROL, r3");
-      asm volatile ("isb");
-      iprintf("priv -> unpriv %d\r\n", getPriv());
-      break;
-
-    case 3:
-      asm volatile ("mrs r3, CONTROL");
-      asm volatile ("movw r2, #0xfffe");
-      asm volatile ("movt r2, #0xffff");
-      asm volatile ("AND R3, R2");
-      asm volatile ("msr CONTROL, r3");
-      asm volatile ("isb");
-      iprintf("unpriv -> priv %d\r\n", getPriv());
-      break;
-
-    case 4:
-      NVIC_ST_CURRENT_R = 0;
-      NVIC_ST_CTRL_R = 0x7;
-      iprintf("force systick\r\n");
-      break;
-
-    default:
-      iprintf("UNKNOWN SVC CALL\r\n");
-      break;
-  }
 }
 
 // This function is called from within user thread context. It executes
@@ -228,7 +183,7 @@ void threadStarter(void)
 {
   // Call the entry point for this thread. The next line returns
   // only when the thread exits.
-  iprintf("in thread started penis\r\n");
+  iprintf("in thread started\r\n");
   (*(threadTable[currThread]))();
 
   // Do thread-specific cleanup tasks. Currently, this just means marking
@@ -240,79 +195,3 @@ void threadStarter(void)
   // the scheduler identifies the thread as inactive.
   yield();
 }
-
-// This is the "main loop" of the program.
-/*
-void scheduler(void)
-{
-  unsigned i;
-
-  currThread = -1;
-  
-  do {
-    // It's kinda inefficient to call setjmp() every time through this
-    // loop, huh? I'm sure your code will be better.
-    if (setjmp(scheduler_buf)==0) {
-
-      // We saved the state of the scheduler, now find the next
-      // runnable thread in round-robin fashion. The 'i' variable
-      // keeps track of how many runnable threads there are. If we
-      // make a pass through threads[] and all threads are inactive,
-      // then 'i' will become 0 and we can exit the entire program.
-      i = NUM_THREADS;
-      do {
-        // Round-robin scheduler
-        if (++currThread == NUM_THREADS) {
-          currThread = 0;
-        }
-
-        if (threads[currThread].active) {
-          // set to unprivileged before jumping to thread by modifying control registers
-          asm volatile ("svc #2");
-          longjmp(threads[currThread].state, 1);
-        } else {
-          i--;
-        }
-      } while (i > 0);
-
-      // No active threads left. Leave the scheduler, hence the program.
-      return;
-
-    } else {
-      // yield() returns here. Did the thread that just yielded to us exit? If
-      // so, clean up its entry in the thread table.
-      // moves from privileged to unprivileged by modify control register
-      // does this here coming back from yeilded threads
-      asm volatile ("svc #3");
-
-      if (! threads[currThread].active) {
-
-        // loop through finding all the words matching 0xff in stack
-        int j = 0;
-        char *stackSpot = threads[currThread].stack - stackSize[currThread];
-        while(*stackSpot == 0xff){
-          j++;
-          stackSpot++;
-        }
-
-        // print the amount of unused stack for the exiting thread
-        iprintf("Thread %u -- Start %p\r\n", currThread, threads[currThread].stack);
-        iprintf("Thread %u -- End %p\r\n", currThread, threads[currThread].stack - stackSize[currThread]);
-        iprintf("Thread %u -- Unused Stack %d\r\n", currThread, j);
-
-        free(threads[currThread].stack - stackSize[currThread]);
-      }
-    }
-  } while (1);
-}
-*/
-void regStateSave(unsigned *storeReg, unsigned *pspLocation){
-  asm volatile("stmea r0, {r4-r11}");
-  asm volatile("MRS r1, PSP");
-}
-
-void regStateRestore(unsigned *storeReg, unsigned pspLocation){
-  asm volatile("MSR PSP, r1");
-  asm volatile("ldmea r0, {r4-r11}");
-}
-
