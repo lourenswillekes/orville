@@ -1,20 +1,8 @@
 /*
- * Implement the thread creation task:
- *
- *   - initialize the jump buffer with appropriate values for
- *     R13 (stack) and R14 (first address to jump to)
- *   - all other registers are irrelevant upon thread creation
- *
- *   In the jump buffer, the R13 slot is set to the second parameter of this
- *   function (the top-of-stack address, passed in R1). The R14 slot is set to
- *   the address of the threadStarter() function.
- *
- *   The C prototype for this function call is:
- *       createThread(threads[i].state, threads[i].stack)
- *   thus:
- *       R0 <-- state (a setjmp()-style jump buffer)
- *       R1 <-- stack (address of top-of-stack)
+ * Store default values into r0-r3, r12, r14, A2R2, XPSR
+ * Store r4-r11, SP into array
  */
+
     .syntax unified
     .text
     .align 2
@@ -24,22 +12,21 @@
     .global createThread
 createThread:  
 
-  /* Save registers in the jump buffer. Their values are
-     not important when the thread is first created. This line is the same as
-     the first two lines of setjmp(), except we dont save SP and LR since we 
-     want to set these to our own values. Really, the only point of this 
-     instruction is to advance R0 to the right location in the jump buffer for 
-     pointing to SP (without having to do any math :-) */
+    // Save random stuff in r0-r3, r12
+    subs    r1, #32
+    stmea   r1!, { r0-r3, r12 }
 
-    stmea  r0!, { r4-r10, r11 }
+    // Save default start values for r14, a2r2, xpsr
+    mov     r2, #13
+    ldr     r3, .L0
+    mov     r4, #1
+    lsls    r4, r4, #24
+    stmea   r1!, { r2-r4 }
   
-  /* Now we save SP and LR in that order. SP is the R1 parameter, and we have
-   * to get the address of threadStarter() into a higher register (so they are
-   * placed in the jump buffer in the right order). */
+    // Save r4-r11 and updated stack pointer
+    subs    r12, r1, #32
+    stmea   r0, { r4-r12 }
 
-    ldr     R2, .L0
-    stmea   R0!, { R1, R2 }   @ Store "SP" and "LR" for the new thread
-    
     bx      lr
     
 .L0:

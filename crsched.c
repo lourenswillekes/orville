@@ -1,8 +1,8 @@
+#include "inc/hw_types.h"
 #include "driverlib/gpio.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/uart.h"
 #include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
 #include "inc/lm3s6965.h"
 #include "rit128x96x4.h"
 #include "scheduler.h"
@@ -41,19 +41,17 @@ void regStateRestore(void);
 typedef struct {
   int active;       // non-zero means thread is allowed to run
   char *stack;      // pointer to TOP of stack (highest memory location)
-  unsigned savedRegs[10];
+  unsigned savedRegs[40];
 } threadStruct_t;
 
 // thread_t is a pointer to function with no parameters and
 // no return value...i.e., a user-space thread.
 typedef void (*thread_t)(void);
 
-// These are the external user-space threads. In this program, we create
-// the threads statically by placing their function addresses in
-// threadTable[]. A more realistic kernel will allow dynamic creation
-// and termination of threads.
-extern void thread1(void);
-extern void thread2(void);
+// Thread functions
+extern void threadUART(void);
+extern void threadOLED(void);
+extern void threadLED(void);
 
 // The size of used stack + 64 bytes for each thread
 // This array replaces STACK_SIZE macro
@@ -72,8 +70,8 @@ static thread_t threadTable[] = {
 };
 
 // These static global variables are used in scheduler(), in yield(), and in threadStarter()
-static threadStruct_t threads[NUM_THREADS]; // the thread table
-unsigned currThread;    // The currently active thread
+static threadStruct_t threads[NUM_THREADS];
+unsigned currThread;
 
 
 
@@ -131,7 +129,7 @@ void main(void)
     // After createThread() executes, we can execute a longjmp()
     // to threads[i].state and the thread will begin execution
     // at threadStarter() with its own stack.
-    createThread(threads[i].state, threads[i].stack);
+    createThread(&threads[i].savedRegs[0], threads[i].stack);
   }
 
   // Enable interrupts
@@ -212,14 +210,10 @@ void handleSVC(int code)
 // like a standard function return back to the caller of yield().
 void yield(void)
 {
-  if (setjmp(threads[currThread].state) == 0) {
-    // yield() called from the thread, jump to scheduler context
-    longjmp(scheduler_buf, 1);
-  } else {
-    // longjmp called from scheduler, return to thread context
 
-    return;
-  }
+    // do thing here to get back to the scheduler
+
+
 }
 
 // This is the starting point for all threads. It runs in user thread
@@ -308,12 +302,14 @@ void scheduler(void)
   } while (1);
 }
 */
-void __attribute__((naked)) regStateSave(unsigned *storeReg, unsigned *pspLocation){
-  asm volatile("stmea r0, {r0-r11, r13}");
+void __attribute__((naked)) regStateSave(unsigned *storeReg, unsigned *pspLocation)
+{
+  asm volatile("stmea r0, {r4-r11, r13}");
   asm volatile("MRS r1, PSP");
 }
 
-void __attribute__((naked)) regStateRestore(unsigned *storeReg, unsigned *pspLocation){
+void __attribute__((naked)) regStateRestore(unsigned *storeReg, unsigned *pspLocation)
+{
   asm volatile("MSR PSP, r1");
-  asm volatile("ldmea r0, {r0-r11, r13}");
+  asm volatile("ldmea r0, {r4-r11, r13}");
 }
