@@ -48,10 +48,6 @@ typedef struct {
 // no return value...i.e., a user-space thread.
 typedef void (*thread_t)(void);
 
-// These are the external user-space threads. In this program, we create
-// the threads statically by placing their function addresses in
-// threadTable[]. A more realistic kernel will allow dynamic creation
-// and termination of threads.
 extern void threadUART(void);
 extern void threadOLED(void);
 extern void threadLED(void);
@@ -73,8 +69,8 @@ static thread_t threadTable[] = {
 };
 
 // These static global variables are used in scheduler(), in yield(), and in threadStarter()
-static threadStruct_t threads[NUM_THREADS]; // the thread table
-unsigned currThread;    // The currently active thread
+static threadStruct_t threads[NUM_THREADS];
+unsigned currThread;
 
 
 
@@ -213,17 +209,7 @@ void handleSVC(int code)
 // like a standard function return back to the caller of yield().
 void yield(void)
 {
-  //TODO: call svc to make systick interupt
-  /*
-  if (setjmp(threads[currThread].savedRegs) == 0) {
-    // yield() called from the thread, jump to scheduler context
-    longjmp(scheduler_buf, 1);
-  } else {
-    // longjmp called from scheduler, return to thread context
-
     return;
-  }
-  */
 }
 
 // This is the starting point for all threads. It runs in user thread
