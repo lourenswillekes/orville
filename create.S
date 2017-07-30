@@ -12,11 +12,11 @@
     .global createThread
 createThread:  
 
-    // Save random stuff in r0-r3, r12
+    // Save random stuff in r0-r3, r12, r14
     subs    r1, #32
     stmea   r1!, { r0-r3, r12, r14 }
 
-    // Save default start values for a2r2, xpsr
+    // Save default start values for a2r2 (threadStarter), xpsr (0x01000000)
     ldr     r2, .L0
     mov     r3, #1
     lsls    r3, r3, #24
