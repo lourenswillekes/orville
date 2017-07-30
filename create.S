@@ -17,7 +17,8 @@ createThread:
     stmea   r1!, { r0-r3, r12 }
 
     // Save default start values for r14, a2r2, xpsr
-    mov     r2, #13
+    //mov     r2, #13
+    ldr     r2, .L0
     ldr     r3, .L0
     mov     r4, #1
     lsls    r4, r4, #24

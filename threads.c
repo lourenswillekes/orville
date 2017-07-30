@@ -23,8 +23,9 @@ void threadUART(void)
 {
 	while (1)
 	{  
-		if (lock_acquire(&uartlock))
-		{
+		iprintf("KILL ME!!!\r\n");
+		//if (lock_acquire(&uartlock))
+		//{
 			iprintf("THIS IS T");
 			yield();
 			iprintf("HREAD NU");
@@ -32,7 +33,7 @@ void threadUART(void)
 			iprintf("MBER %d\r\n", currThread);
 			
 			lock_release(&uartlock);
-		}
+		//}
 	yield();
 	}
 }

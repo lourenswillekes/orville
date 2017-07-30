@@ -34,14 +34,14 @@ void SVCHandle(void);
 int getPriv(void);
 void handleSVC(int code);
 void threadStarter(void);
-__attribute__((naked)) void regStateSave(unsigned *storeReg, unsigned *pspLocation);
-__attribute__((naked)) void regStateRestore(unsigned *storeReg, unsigned *pspLocation);
+void regStateSave(unsigned *storeReg, unsigned *pspLocation);
+void regStateRestore(unsigned *storeReg, unsigned pspLocation);
 
 
 typedef struct {
   int active;       // non-zero means thread is allowed to run
   char *stack;      // pointer to TOP of stack (highest memory location)
-  unsigned savedRegs[40];
+  unsigned savedRegs[10];
 } threadStruct_t;
 
 // thread_t is a pointer to function with no parameters and
@@ -56,16 +56,16 @@ extern void threadLED(void);
 // This array replaces STACK_SIZE macro
 static int stackSize[] = {
   STACK_SIZE,
-  STACK_SIZE,
-  STACK_SIZE,
-  STACK_SIZE
+  //STACK_SIZE,
+  //STACK_SIZE,
+  //STACK_SIZE
 };
 
 static thread_t threadTable[] = {
   threadUART,
-  threadUART,
-  threadOLED,
-  threadLED,
+  //threadUART,
+  //threadOLED,
+  //threadLED,
 };
 
 // These static global variables are used in scheduler(), in yield(), and in threadStarter()
@@ -108,7 +108,7 @@ void main(void)
   NVIC_ST_CTRL_R = 0;
   NVIC_ST_RELOAD_R = 8000;
   NVIC_ST_CURRENT_R = 0;
-  NVIC_ST_CTRL_R = 0x7;
+  //NVIC_ST_CTRL_R = 0x7;
 
   // Create all the threads and allocate a stack for each one
   for (i=0; i < NUM_THREADS; i++) {
@@ -134,8 +134,11 @@ void main(void)
   // Enable interrupts
   IntMasterEnable();
 
+  iprintf("This is dumb\r\n");
+
   // Start running coroutines
-  scheduler();
+  asm volatile ("svc #0");
+  //scheduler();
 
   // If scheduler() returns, all coroutines are inactive and we return
   // from main() hence exit() should be called implicitly (according to
@@ -145,13 +148,15 @@ void main(void)
 }
 
 void scheduler(void){
-  regStateSave(threads[currThread].savedRegs, &threads[currThread].savedRegs[32]);
-  if (++currThread == NUM_THREADS) {
-    currThread = 0;
-  }
-  NVIC_ST_CURRENT_R = 0;
-  regStateRestore(threads[currThread].savedRegs, &threads[currThread].savedRegs[32]);
-  return;
+  //regStateSave(threads[currThread].savedRegs, &threads[currThread].savedRegs[8]);
+  //if (++currThread == NUM_THREADS) {
+  //  currThread = 0;
+  //}
+  //NVIC_ST_CURRENT_R = 0;
+  regStateRestore(threads[currThread].savedRegs, threads[currThread].savedRegs[8]);
+  asm volatile ("movw lr, #0xfffd");
+  asm volatile ("movt lr, #0xffff");
+  asm volatile ("bx lr");
 }
 
 void SVCHandle(void){
@@ -174,6 +179,8 @@ void handleSVC(int code)
   // handler (exception handlers should be small and short).
   // But this is the easiest way to show we got it right.
   switch (code & 0xFF) {
+    case 0:
+      scheduler();
     case 2:
       asm volatile ("mrs r3, CONTROL");
       asm volatile ("ORR R3, R3, #1");
@@ -209,7 +216,7 @@ void handleSVC(int code)
 // like a standard function return back to the caller of yield().
 void yield(void)
 {
-    return;
+  asm volatile ("svc #0");
 }
 
 // This is the starting point for all threads. It runs in user thread
@@ -221,6 +228,7 @@ void threadStarter(void)
 {
   // Call the entry point for this thread. The next line returns
   // only when the thread exits.
+  iprintf("in thread started penis\r\n");
   (*(threadTable[currThread]))();
 
   // Do thread-specific cleanup tasks. Currently, this just means marking
@@ -298,12 +306,12 @@ void scheduler(void)
   } while (1);
 }
 */
-__attribute__((naked)) void regStateSave(unsigned *storeReg, unsigned *pspLocation){
+void regStateSave(unsigned *storeReg, unsigned *pspLocation){
   asm volatile("stmea r0, {r4-r11}");
   asm volatile("MRS r1, PSP");
 }
 
-__attribute__((naked)) void regStateRestore(unsigned *storeReg, unsigned *pspLocation){
+void regStateRestore(unsigned *storeReg, unsigned pspLocation){
   asm volatile("MSR PSP, r1");
   asm volatile("ldmea r0, {r4-r11}");
 }
