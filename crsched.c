@@ -1,8 +1,8 @@
 #include "inc/hw_types.h"
+#include "inc/hw_memmap.h"
 #include "driverlib/gpio.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/uart.h"
-#include "inc/hw_memmap.h"
 #include "inc/lm3s6965.h"
 #include "rit128x96x4.h"
 #include "scheduler.h"
@@ -84,6 +84,7 @@ void main(void)
   // Enable the peripherals used by this example.
   SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
   SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
 
   // Set GPIO A0 and A1 as UART pins.
   GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
@@ -92,6 +93,9 @@ void main(void)
   UARTConfigSetExpClk(UART0_BASE, SysCtlClockGet(), 115200,
                       (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                        UART_CONFIG_PAR_NONE));
+
+  // Init LED
+  GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_0);
 
   // Init lock function
   lock_init(&uartlock);
@@ -184,4 +188,8 @@ void threadStarter(void)
   // This yield returns to the scheduler and never returns back since
   // the scheduler identifies the thread as inactive.
   yield();
+}
+
+int getCurrThread(void){
+  return currThread;
 }

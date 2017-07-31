@@ -3,6 +3,7 @@
 
 extern unsigned currThread;
 extern void yield(void);
+extern int getCurrThread(void);
 
 extern unsigned uartlock;
 extern void lock_init(unsigned *lock);
