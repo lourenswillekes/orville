@@ -15,7 +15,8 @@ void threadUART(void)
 		{
 			iprintf("HELLO FRO");
 			iprintf("M THREAD ");
-			iprintf("NUMBER %d\r\n", getCurrThread());
+			iprintf("NUMBER %d ", getCurrThread());
+			iprintf("%d %d\r\n", getPrivLevel(), getContextSwitch());
 
 			lock_release(&uartlock);
 		}

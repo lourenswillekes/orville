@@ -4,6 +4,8 @@
 extern unsigned currThread;
 extern void yield(void);
 extern int getCurrThread(void);
+extern int getPrivLevel(void);
+extern int getContextSwitch(void);
 
 extern unsigned uartlock;
 extern void lock_init(unsigned *lock);

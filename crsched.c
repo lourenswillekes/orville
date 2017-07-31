@@ -61,6 +61,7 @@ static thread_t threadTable[] = {
 static threadStruct_t threads[NUM_THREADS];
 unsigned currThread;
 unsigned firstTime = 1;
+unsigned contextSwitch; 
 
 
 
@@ -138,6 +139,18 @@ void main(void)
 }
 
 void scheduler(void){
+  //reset systick timer
+  NVIC_ST_CURRENT_R = 0;
+
+  // Change privileged mode to privileged
+  asm volatile ("mrs r3, CONTROL");
+  asm volatile ("movw r2, #0xfffe");
+  asm volatile ("movt r2, #0xffff");
+  asm volatile ("AND R3, R2");
+  asm volatile ("msr CONTROL, r3");
+  asm volatile ("isb");
+
+
   // First time scheduler is called the correct value is put into psp for save state
   if(firstTime){
       asm volatile ("MSR PSP, %0" : : "r" (threads[currThread].savedRegs[8]));
@@ -152,16 +165,23 @@ void scheduler(void){
     currThread = 0;
   }
 
-  //iprintf(".");
-  NVIC_ST_CURRENT_R = 0;
+  //iprintf("Sched priv %d\r\n", getPrivLevel());
 
   // Restore thread state
   asm volatile("ldm %0, {r4-r12}" : : "r" (threads[currThread].savedRegs));
   asm volatile("MSR PSP, r12");
 
+  // Change privileged level to unprivileged for thread
+  asm volatile ("mrs r3, CONTROL");
+  asm volatile ("ORR R3, R3, #1");
+  asm volatile ("msr CONTROL, r3");
+  asm volatile ("isb");
+
   // Fake return to unprivileged thread mode
   asm volatile ("movw lr, #0xfffd");
   asm volatile ("movt lr, #0xffff");
+
+  contextSwitch = 8000 - NVIC_ST_CURRENT_R;
   asm volatile ("bx lr");
 }
 
@@ -192,4 +212,14 @@ void threadStarter(void)
 
 int getCurrThread(void){
   return currThread;
+}
+
+int getPrivLevel(void){
+  asm volatile ("mrs r0, CONTROL");
+  asm volatile ("AND R0, R0, #1");
+  asm volatile ("bx lr");
+}
+
+int getContextSwitch(void){
+  return contextSwitch;
 }
